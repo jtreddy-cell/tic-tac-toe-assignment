@@ -6,8 +6,8 @@
 
 Game::Game()
 {
-	_gameOptions.AIPlayer = false;
-	_gameOptions.AIPlaying = false;
+	_gameOptions.AIPlayer = true;
+	_gameOptions.AIPlaying = true;
 	_gameOptions.currentTurnNo = 0;
 	_gameOptions.gameNumber = -1;
 	_gameOptions.numberOfPlayers = 0;
@@ -66,7 +66,6 @@ void Game::setAIPlayer(unsigned int playerNumber)
 {
 	_players.at(playerNumber)->setAIPlayer(true);
 	_gameOptions.AIPlayer = playerNumber;
-	_gameOptions.AIPlayer = true;
 }
 
 void Game::startGame()
@@ -93,11 +92,18 @@ void Game::endTurn()
 
 void Game::scanForMouse()
 {
-    //if (gameHasAI() && getCurrentPlayer()->isAIPlayer()) 
-    //{
-    //    updateAI();
-    //    return;
-    //}
+    // If game is over, don't allow any more moves
+    if (_winner != nullptr || checkForWinner() || checkForDraw()) {
+        return;
+    }
+    
+    // If it's the AI's turn, don't scan for mouse and have the ai play instead
+    Player* currentPlayer = getCurrentPlayer();
+    if (currentPlayer && currentPlayer->isAIPlayer()) {
+        updateAI();
+        return;
+    }
+
 
     ImVec2 mousePos = ImGui::GetMousePos();
     mousePos.x -= ImGui::GetWindowPos().x;
@@ -167,10 +173,11 @@ bool Game::animateAndPlaceBitFromTo(Bit *bit, BitHolder*src, BitHolder*dst)
 
 bool Game::gameHasAI()
 {
-    return false;
+	return true;
 }
 
 void Game::updateAI()
 {
+
 }
 

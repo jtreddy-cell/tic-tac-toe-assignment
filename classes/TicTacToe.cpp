@@ -41,9 +41,9 @@ TicTacToe::~TicTacToe()
 // DO NOT CHANGE: This returns a new Bit with the right texture and owner
 Bit* TicTacToe::PieceForPlayer(const int playerNumber)
 {
-    // depending on playerNumber load the "x.png" or the "o.png" graphic
     Bit *bit = new Bit();
-    bit->LoadTextureFromFile(playerNumber == 1 ? "x.png" : "o.png");
+    // Player 0 = X, Player 1 = O
+    bit->LoadTextureFromFile(playerNumber == 0 ? "x.png" : "o.png");
     bit->setOwner(getPlayerAt(playerNumber));
     return bit;
 }
@@ -53,22 +53,25 @@ Bit* TicTacToe::PieceForPlayer(const int playerNumber)
 //
 void TicTacToe::setUpBoard()
 {
-    // here we should call setNumberOfPlayers to 2 and then set up the game options so the mouse knows to draw a 3x3 grid
+    stopGame();
+    
     setNumberOfPlayers(2);
-    // _gameOptions has a rowX and rowY property we should set to 3
+    setAIPlayer(1); 
+    
     _gameOptions.rowX = 3;
     _gameOptions.rowY = 3;
-    // then we need to setup our 3x3 array in _grid with the correct position of the square, and load the "square.png" sprite for each square
-    // we will use the initHolder function on each square to do this
-    for(int x=0; x<3; x++) {
-        for(int y=0; y<3; y++) {
-            _grid[x][y].initHolder(ImVec2(50 + x * 75, 50 + y * 75), "square.png", x, y);
+    
+    // Clear the board completely first
+    for(int y=0; y<3; y++) {
+        for(int x=0; x<3; x++) {
+            _grid[y][x].destroyBit();
+            _grid[y][x].initHolder(ImVec2(50 + x * 75, 50 + y * 75), "square.png", x, y);
         }
     }
-    // finally we should call startGame to get everything going
+    
+    _winner = nullptr;  // ADD THIS
     startGame();
 }
-
 //
 // about the only thing we need to actually fill out for tic-tac-toe
 //
@@ -119,12 +122,22 @@ bool TicTacToe::canBitMoveFromTo(Bit* bit, BitHolder*src, BitHolder*dst)
 void TicTacToe::stopGame()
 {
     // clear out the board
-    // loop through the 3x3 array and call destroyBit on each square
-    for(int x=0; x<3; x++) {
-        for(int y=0; y<3; y++) {
-            _grid[x][y].destroyBit();
+    for(int y=0; y<3; y++) {  // Fix: was x in outer loop
+        for(int x=0; x<3; x++) {
+            _grid[y][x].destroyBit();
         }
     }
+    
+    // Reset game state
+    _winner = nullptr;
+    _gameOptions.currentTurnNo = 0;
+    _gameOptions.AIPlaying = false;  // ADD THIS
+    
+    // Clear all turns
+    for (auto & _turn : _turns) {
+        delete _turn;
+    }
+    _turns.clear();
 }
 
 //
@@ -281,11 +294,91 @@ void TicTacToe::setStateString(const std::string &s)
 }
 
 
-//
-// this is the function that will be called by the AI
-//
 void TicTacToe::updateAI() 
 {
-    // we will implement the AI in the next assignment!
+    // Check if game is already over
+    if (checkForWinner() || checkForDraw()) {
+        return;  // Don't make a move if game is over
+    }
+
+    int bestScore = -1000;
+    BitHolder* bestMove = nullptr;
+
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            if (_grid[y][x].bit() == nullptr) {
+                // simulate AI move
+                Bit* aiBit = PieceForPlayer(AI_PLAYER);
+                aiBit->setPosition(_grid[y][x].getPosition());
+                _grid[y][x].setBit(aiBit);
+
+                // evaluate move using negamax
+                int score = -negamax(HUMAN_PLAYER, 1, -1000, 1000);
+
+                // undo simulated move
+                _grid[y][x].destroyBit();
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = &_grid[y][x];
+                }
+            }
+        }
+    }
+
+    // actually make the best move
+    if (bestMove) {
+        Bit* aiBit = PieceForPlayer(AI_PLAYER);
+        aiBit->setPosition(bestMove->getPosition());
+        bestMove->setBit(aiBit);
+        
+        // Check for winner/draw before ending turn
+        _winner = checkForWinner();
+        
+        endTurn();
+    }
 }
 
+
+
+int TicTacToe::negamax(int player, int depth, int alpha, int beta) 
+{
+    // Check terminal states
+    Player* winner = checkForWinner();
+    if (winner) {
+        return (winner->playerNumber() == AI_PLAYER ? 10 : -10) - depth;
+    }
+
+    if (checkForDraw()) {
+        return 0;
+    }
+
+    int bestScore = -1000;
+
+    for (int y = 0; y < 3; y++) {
+        for (int x = 0; x < 3; x++) {
+            if (_grid[y][x].bit() == nullptr) {
+                // Simulate move
+                Bit* bit = PieceForPlayer(player);
+                bit->setPosition(_grid[y][x].getPosition());
+                _grid[y][x].setBit(bit);
+
+                // Recursive call with alpha-beta
+                int score = -negamax(1 - player, depth + 1, -beta, -alpha);
+
+                // Undo move
+                _grid[y][x].destroyBit();
+
+                bestScore = std::max(bestScore, score);
+                alpha = std::max(alpha, score);
+                
+                // Alpha-beta pruning
+                if (alpha >= beta) {
+                    return bestScore;  // Cut off
+                }
+            }
+        }
+    }
+
+    return bestScore;
+}

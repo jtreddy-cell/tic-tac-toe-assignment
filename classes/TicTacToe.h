@@ -29,6 +29,7 @@ public:
     void        stopGame() override;
 
 	void        updateAI() override;
+    int negamax(int player, int depth, int alpha = -1000, int beta = 1000);
     bool        gameHasAI() override { return true; }
     BitHolder &getHolderAt(const int x, const int y) override { return _grid[y][x]; }
 private:
